@@ -1,3 +1,4 @@
+#!/bin/bash
 posts=$(find posts -type f -name '*.md')
 
 

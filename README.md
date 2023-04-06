@@ -41,7 +41,7 @@ in the location
 and running
 
 ```bash
-$ mayke
+$ ./mayke
 ```
 
 resulting in
