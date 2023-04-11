@@ -7,7 +7,8 @@ cd "$(dirname "$0")"
 
 
 if [[ "${1-}" =~ ^-*h(elp)?$ || $# < 2 || ! -d "$2" ]]; then
-    echo 'Usage: ./mayke.sh TITLE POSTS [ MEDIA ]
+    echo '
+Usage: ./mayke.sh TITLE POSTS [ MEDIA ]
 
 Use pandoc to generate a single-page blog with title TITLE from Markdown files.
 The posts should each have a metadata block
@@ -29,19 +30,56 @@ for d in temp page; do [[ -d "$d" ]] && rm -rf "$d"; mkdir "$d"; done
 art_id='${if(date)}${date}${else}${title}${endif}'
 
 # Article template
-echo '<section id="#'"$art_id"'"><h1 id="'"$art_id"'">${title}</h1>
-${if(date)}<time>${date}</time>${endif}${body}</section>' > temp/article.html
+echo '
+<section id="#'"$art_id"'">
+<h1 id="'"$art_id"'">
+  ${title}
+</h1>
+
+${if(date)}
+<time>
+  ${date}
+</time>
+${endif}
+
+${body}
+</section>' > temp/article.html
 
 # TOC-entry template
-echo '<div><div>${if(date)}<div class="home">${date}</div>${endif}
-<h2 class="home"><a href="#'"$art_id"'">${title}</a></h2></div>
-${if(summary)}<div><p class="home">${summary}</p></div>${endif}</div>' > temp/toc_entry.html
+echo '
+<div>
+  <div>
+    ${if(date)}
+    <div class="home">
+      ${date}
+    </div>
+    ${endif}
+
+    <h2 class="home">
+      <a href="#'"$art_id"'">
+        ${title}
+      </a>
+    </h2>
+  </div>
+
+  ${if(summary)}
+  <div>
+    <p class="home">
+      ${summary}
+    </p>
+  </div>
+  ${endif}
+</div>' > temp/toc_entry.html
 
 # Style-file
-echo '<style>section{display: none;}</style>' > temp/style.css
+echo '
+<style>
+  section{display: none;}
+</style>' > temp/style.css
 
 # Script-file
-echo '<script>
+echo '
+<script>
 const SECTION = "boerseth-section-key";
 const setElementDisplay = (elementId, value) => {
     const element = document.getElementById(elementId);
