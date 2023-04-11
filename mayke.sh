@@ -53,7 +53,7 @@ const showSection = (section) => {
     setElementDisplay(sectionOld, "none");
     setElementDisplay(section, "block");
 };
-window.onhashchange = () => showSection(window.location.hash || "#Home");
+window.onhashchange = () => showSection(window.location.hash || "#");
 window.onhashchange();
 </script>' > temp/script.html
 
@@ -71,7 +71,7 @@ done
 
 
 # Create TOC
-echo '<section id="#Home">' > temp/toc.html
+echo '<section id="#">' > temp/toc.html
 for file in $files; do
     echo `pandoc --template temp/toc_entry.html $file`
 done | sort --reverse >> temp/toc.html
@@ -87,7 +87,7 @@ done | pandoc -s --katex -f html -t html \
     --metadata title="$1" \
     -o page/index.html
 sed -i -e '/^<\/header>$/r temp/toc.html' \
-    -e 's/^<header/<a href="#Home"><header/' \
+    -e 's/^<header/<a href="#"><header/' \
     -e 's/^<\/header>$/<\/header><\/a>/' \
     page/index.html
 
