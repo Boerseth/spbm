@@ -5,23 +5,17 @@ set -o pipefail
 if [[ "${TRACE-0}" == "1" ]]; then set -o xtrace; fi
 cd "$(dirname "$0")"
 
-HELP='
-Usage: ./mayke.sh TITLE POSTS [ MEDIA ]
-
-Use pandoc to generate a single-page blog with title TITLE from Markdown files.
-The posts should each have a metadata block
-        ---
-        date: ""
-        title: ""
-        summary: ""
-        ...
-and be located in the directory specified by argument POSTS. Optionally include
-media in a directory MEDIA.'
+HELP='    Usage: ./mayke.sh TITLE POSTS [ MEDIA ]
+Create a single-page blog TITLE, from Markdown files in dir. POSTS. Optionally
+include other media in a directory MEDIA. Markdown files should start with a
+metadata block containing fields:
+    date: "2000-01-01"
+    title: "Simple title"
+    summary: "A sentence or two about the post"'
 if [[ "${1-}" =~ ^-*h(elp)?$ || $# < 2 || ! -d "$2" ]]; then echo "$HELP"; exit; fi
 
-
 ART_ID='$if(date)$$date$$else$$title$$endif$'
-TEMP_POST='
+TEMPLATE_POST='
 $if(full)$<section id="'"$ART_ID"'">$endif$
 $if(full)$<h1>$title$</h1>$else$<h2><a href="#'"$ART_ID"'">$title$</a></h2>$endif$
 $if(date)$<div class="post-date">$date$</div>$endif$
@@ -29,15 +23,15 @@ $if(summary)$<div class="post-summary">$summary$</div>$endif$
 $if(full)$$body$$endif$
 $if(full)$</section>$endif$'
 # (The order of the sections becomes important: #toc must be last)
-TEMP_STYLE='
+TEMPLATE_STYLE='
 <style>
 section { display: none; } section:target { display: block; }
 section#toc { display: block; } section:target ~ section#toc { display: none; }
 </style>'
-for d in temp build; do [[ ! -d "$d" ]] && mkdir "$d"; rm -rf "$d"/*; done
-echo "$TEMP_POST" > temp/post.html
-echo "$TEMP_STYLE" > temp/style.css
 
+for d in temp build; do [[ ! -d "$d" ]] && mkdir "$d"; rm -rf "$d"/*; done
+echo "$TEMPLATE_POST" > temp/post.html
+echo "$TEMPLATE_STYLE" > temp/style.css
 
 main() {
     # Verify metadata headers
@@ -68,6 +62,5 @@ main() {
     # Maybe import media-files
     [[ $@ == 3 && -d $3 ]] && cp "$3"/* build/
 }
-
 
 main "$@"
