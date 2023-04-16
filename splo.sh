@@ -6,8 +6,8 @@ if [[ "${TRACE-0}" == "1" ]]; then set -o xtrace; fi
 cd "$(dirname "$0")"
 
 HELP='
-usage: ./mayke.sh -t <title> -p <posts_directory>
-                  [-m <media_directory>] [-h]
+usage: ./splo.sh -t <title> -p <posts_directory>
+                 [-m <media_directory>] [-h]
 
 Create a single-page blog from Markdown. Files need a metadata block:
 date: "[0-9]{4}-[0-9]{2}-[0-9]{2}"
