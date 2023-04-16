@@ -5,96 +5,137 @@ set -o pipefail
 if [[ "${TRACE-0}" == "1" ]]; then set -o xtrace; fi
 cd "$(dirname "$0")"
 
+HELP='
+usage: ./mayke.sh -t <title> -p <posts_directory>
+                  [-m <media_directory>] [-h]
 
-if [[ "${1-}" =~ ^-*h(elp)?$ || $# < 2 || ! -d "$2" ]]; then
-    echo 'Usage: ./mayke.sh TITLE POSTS [ MEDIA ]
+Create a single-page blog from Markdown. Files need a metadata block:
+date: "[0-9]{4}-[0-9]{2}-[0-9]{2}"
+title: ".*"
+summary: ".*"
 
-Use pandoc to generate a single-page blog with title TITLE from Markdown files.
-The posts should each have a metadata block
-        ---
-        date: ""
-        title: ""
-        summary: ""
-        ...
-and be located in the directory specified by argument POSTS. Optionally include
-media in a directory MEDIA.'
-    exit
-fi
+Dependencies:
+  pandoc
 
+Options:
+  -t <title>           Title of the blog, (e.g. "John Doe")
+  -p <posts_directory> Location of markdown-file directory
+  -m <media_directory> Optional location of media-files
+  -h                   Show this help message and exit
 
-for d in temp page; do [[ -d "$d" ]] && rm -rf "$d"; mkdir "$d"; done
+Examples:
+  ./mayke.sh -h
+  ./mayke.sh -t "Ola Nordmann" -p ./path/to/posts/
+  ./mayke.sh -t "frode" -p posts/ -m media/'
 
+ART_ID='$if(date)$$date$$else$$title$$endif$'
+TEMPLATE_TOC='<h2><a href="#'"$ART_ID"'">$title$</a></h2>
+$if(date)$<div class="post-date">$date$</div>$endif$
+$if(summary)$<div class="post-summary">$summary$</div>$endif$'
 
-# Create pandoc templates:
-art_id='${if(date)}${date}${else}${title}${endif}'
+TEMPLATE_POST='<section id="'"$ART_ID"'">
+<h1>$title$</h1>
+$if(date)$<div class="post-date">$date$</div>$endif$
+$if(summary)$<div class="post-summary">$summary$</div>$endif$
+$body$
+</section>'
 
-# Article template
-echo '<section id="#'"$art_id"'"><h1 id="'"$art_id"'">${title}</h1>
-${if(date)}<time>${date}</time>${endif}${body}</section>' > temp/article.html
+HOME="home"  # Will be the fragment of the default section: "www.url.com#home"
+TEMPLATE_STYLE='<style>
+section { display: none; }
+section:target { display: block; }
+section#'"$HOME"' { display: block; }
+section:target ~ section#'"$HOME"' { display: none; }
+</style>'  # (The order of the sections is now important: #home must be last)
 
-# TOC-entry template
-echo '<div><div>${if(date)}<div class="home">${date}</div>${endif}
-<h2 class="home"><a href="#'"$art_id"'">${title}</a></h2></div>
-${if(summary)}<div><p class="home">${summary}</p></div>${endif}</div>' > temp/toc_entry.html
+TEMP="temp"
+BUILD="build"
 
-# Style-file
-echo '<style>section{display: none;}</style>' > temp/style.css
+prepare_workspace() {
+    [[ ! -d $TEMP ]] && mkdir "$TEMP"
+    [[ ! -d $BUILD ]] && mkdir "$BUILD"
+    echo "$TEMPLATE_TOC" > "$TEMP"/toc_entry.html
+    echo "$TEMPLATE_POST" > "$TEMP"/post.html
+    echo "$TEMPLATE_STYLE" > "$TEMP"/style.css
+}
 
-# Script-file
-echo '<script>
-const SECTION = "boerseth-section-key";
-const setElementDisplay = (elementId, value) => {
-    const element = document.getElementById(elementId);
-    if (element) { element.style.display = value; }
-};
-const showSection = (section) => {
-    const sectionOld = window.sessionStorage.getItem(SECTION);
-    window.sessionStorage.setItem(SECTION, section);
-    setElementDisplay(sectionOld, "none");
-    setElementDisplay(section, "block");
-};
-window.onhashchange = () => showSection(window.location.hash || "#");
-window.onhashchange();
-</script>' > temp/script.html
+check_all_files() {
+    for file in $(find "$1" -type f -name "*.md"); do
+        if ! grep -Eq "date: \"([0-9]{4}-[0-9]{2}-[0-9]{2}|)\"" "$file"; then
+            echo "Error in metadata-block of $file" >&2
+            return 1
+        elif ! grep -Eq "title: \".*\"" "$file"; then
+            echo "Error in metadata-block of $file" >&2
+            return 1
+        elif ! grep -Eq "summary: \".*\"" "$file"; then
+            echo "Error in metadata-block of $file" >&2
+            return 1
+        fi
+    done
+}
 
+check_dependencies() {
+    if ! command -v pandoc >/dev/null; then
+        echo "Error: pandoc must be installed."
+        return 1
+    fi
+}
 
-files=$(find "$2" -type f -name '*.md')
+parse_arguments() {
+    while getopts ":t:p:m:h-:" opt "$@"; do
+        case $opt in
+            h)
+                echo "$HELP"
+                return 0
+                ;;
+            t)
+                title="$OPTARG"
+                ;;
+            p)
+                posts="$OPTARG"
+                ;;
+            m)
+                media="$OPTARG"
+                ;;
+            *)
+                echo "Error: Invalid option: $opt"
+                return 1
+                ;;
+        esac
+    done
+    if [[ -z "$title" || -z "$posts" ]]; then
+        echo "Error! Missing options"
+        return 1
+    fi
+}
 
+main() {
+    cd "$(dirname "$0")"
+    parse_arguments "$@" || exit 1
+    check_dependencies  || exit 1
+    check_all_files "$posts" || exit 1
+    prepare_workspace
 
-# Verify metadata headers
-for file in $files; do
-    header="$(head -n 5 $file | sed 's/:.*$//' | paste -s - | sed 's/\s//g')"
-    [[ $header == "---datetitlesummary..." ]] && continue
-    echo "Error in header of $file: $header" >&2
-    exit 1
-done
+    # Sort file names by date for chronological TOC
+    files=$(for f in $(find "$posts" -type f -name "*.md"); do
+        head -n 5 $f | grep '^date: ' | sed 's|^date: "\(.*\)"$|\1 '"$f"'|'
+    done | sort --reverse | sed 's/^.* //')
 
+    # Create TOC and sections
+    echo '<section id="'"$HOME"'">' > "$TEMP"/toc
+    for f in $files; do pandoc --template "$TEMP"/toc_entry.html "$f"; done >> "$TEMP"/toc
+    echo '</section>' >> "$TEMP"/toc
+    for f in $files; do pandoc --template "$TEMP"/post.html "$f"; done >> "$TEMP"/secs
 
-# Create TOC
-echo '<section id="#">' > temp/toc.html
-for file in $files; do
-    echo `pandoc --template temp/toc_entry.html $file`
-done | sort --reverse >> temp/toc.html
-echo '</section>' >> temp/toc.html
+    # Create index.html
+    pandoc -s --katex -f html -t html -M title="$title" -H "$TEMP"/style.css "$TEMP"/secs "$TEMP"/toc \
+        | sed -e 's/^<header/<a href="#'"$HOME"'"><header/' -e 's/^<\/header>$/<\/header><\/a>/' \
+        > "$BUILD"/index.html
 
+    # Maybe import media-files
+    if [[ ! -z "$media" && -d "$media" ]]; then
+        cp "$media"/* "$BUILD"/
+    fi
+}
 
-# Create index.html
-for file in $files; do
-    pandoc --template temp/article.html "$file"
-done | pandoc -s --katex -f html -t html \
-    --include-in-header=temp/style.css \
-    --include-after-body=temp/script.html \
-    --metadata title="$1" \
-    -o page/index.html
-sed -i -e '/^<\/header>$/r temp/toc.html' \
-    -e 's/^<header/<a href="#"><header/' \
-    -e 's/^<\/header>$/<\/header><\/a>/' \
-    page/index.html
-
-
-# Maybe import media-files
-[[ $@ == 3 && -d $3 ]] && cp "$3"/* page/
-
-
-# Clean up temporary files
-rm -rf temp
+main "$@"
