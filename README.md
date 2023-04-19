@@ -42,13 +42,10 @@ Here goes the blog-post itself
 4. Run the script with title, post-directory, and media-directory as options:
 
 ```bash
-$ ./splo.sh -t Frode -p posts -m media -f
+$ ./splo.sh -t Frode -p posts -m media
 ```
 
-5. The script creates two directories:
-
-    i. `temp/` - contains templates and temporary files used by pandoc
-
-    ii. `build/` - contains the web page file `index.html` and all contents of the directory `media` if one was provided.
-
+5. The script creates two directories:  
+    i. `temp/` - contains templates and temporary files used by pandoc  
+    ii. `build/` - contains the web page file `index.html` and all contents of the directory `media` if one was provided.  
   These are placed next to the argument `posts`. The build will fail if a `temp` or `build` already exists in this location, unless the forcing flag `-f` is provided.
