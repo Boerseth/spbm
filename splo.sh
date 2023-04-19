@@ -42,10 +42,35 @@ $body$
 
 HOME="home"  # Will be the fragment of the default section: "www.url.com#home"
 TEMPLATE_STYLE='<style>
+    /*  With inspiration from "58 bytes of css to look great nearly everywhere":
+        https://gist.github.com/JoeyBurzynski/617fb6201335779f8424ad9528b72c41  */
+html {
+    max-width: 80ch;
+    padding: 3em 1em;
+    margin: auto;
+    line-height: 1.5;
+    font-size: 1em;
+}
+h1,h2,h3,h4,h5,h6 {
+    margin: 3em 0 0;
+}
+p,ul,ol {
+    margin-bottom: 2em;
+    color: #1d1d1d;
+    font-family: sans-serif;
+}
+.center {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
 section { display: none; }
 section:target { display: block; }
 section#'"$HOME"' { display: block; }
 section:target ~ section#'"$HOME"' { display: none; }
+    /*  The order of the sections is now important: #home must be last  */
+:target { scroll-margin: 50vh; }
 </style>'  # (The order of the sections is now important: #home must be last)
 
 TEMP="temp"
