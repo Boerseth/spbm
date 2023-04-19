@@ -1,5 +1,5 @@
-# Single WebPage Template (SWePT)
-I wanted to make my whole blog just one HTML file, one that would navigate from blog-post to blog-post by toggling element-visibility depending on the URL-fragment. The script `mayke.sh` does the job.
+# Single Page web-LOg SHell-script (splo.sh)
+I wanted to make my whole blog just one HTML file, one that would navigate from blog-post to blog-post by toggling element-visibility depending on the URL-fragment. The script `splo.sh` does the job.
 
 
 ## License
@@ -9,11 +9,9 @@ GPL v3.0
 ## Usage
 You should probably not use this.
 
-
-### Basic usage
 But if you must:
 
-1. Create markdown-files of your blog entries, with a metadata-block at the top of the file as follows:
+1. Create blog entries in the form of markdown-files. They all must have a metadata-block at the top, like so:
 
 ```markdown
 ---
@@ -29,8 +27,8 @@ Here goes the blog-post itself
 
 2. Place any media you might want to host and link to from your page in a second directory, e.g. `media`.
 
-4. Run the script with title, post-directory, and media-directory as arguments:
+4. Run the script with title, post-directory, and media-directory as options:
 
 ```bash
-$ ./mayke.sh Frode posts media
+$ ./splo.sh -t Frode -p posts -m media
 ```
