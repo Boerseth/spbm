@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 
 HELP='
 usage: ./splo.sh -t <title> -p <posts_directory>
-                 [-m <media_directory>] [-h]
+                 [-m <media_directory>] [-f] [-h]
 
 Create a single-page blog from Markdown. Files need a metadata block:
 date: "[0-9]{4}-[0-9]{2}-[0-9]{2}"
@@ -18,10 +18,11 @@ Dependencies:
   pandoc
 
 Options:
-  -t <title>           Title of the blog, (e.g. "John Doe")
-  -p <posts_directory> Location of markdown-file directory
-  -m <media_directory> Optional location of media-files
-  -h                   Show this help message and exit
+  -t <title>            Title of the blog, (e.g. "John Doe")
+  -p <posts_directory>  Location of markdown-file directory
+  -m <media_directory>  Optional location of media-files
+  -f                    Force - deletes old temporary- and output-directories
+  -h                    Show this help message and exit
 
 Examples:
   ./mayke.sh -h
@@ -32,7 +33,6 @@ ART_ID='$if(date)$$date$$else$$title$$endif$'
 TEMPLATE_TOC='<h2><a href="#'"$ART_ID"'">$title$</a></h2>
 $if(date)$<div class="post-date">$date$</div>$endif$
 $if(summary)$<div class="post-summary">$summary$</div>$endif$'
-
 TEMPLATE_POST='<section id="'"$ART_ID"'">
 <h1>$title$</h1>
 $if(date)$<div class="post-date">$date$</div>$endif$
@@ -71,43 +71,77 @@ section#'"$HOME"' { display: block; }
 section:target ~ section#'"$HOME"' { display: none; }
     /*  The order of the sections is now important: #home must be last  */
 :target { scroll-margin: 50vh; }
-</style>'  # (The order of the sections is now important: #home must be last)
+</style>'
 
 TEMP="temp"
 BUILD="build"
 
 prepare_workspace() {
-    [[ ! -d $TEMP ]] && mkdir "$TEMP"
-    [[ ! -d $BUILD ]] && mkdir "$BUILD"
-    echo "$TEMPLATE_TOC" > "$TEMP"/toc_entry.html
-    echo "$TEMPLATE_POST" > "$TEMP"/post.html
-    echo "$TEMPLATE_STYLE" > "$TEMP"/style.css
+    base="$1"
+    force="$2"
+
+    temp="$base"/temp
+    build="$base"/build
+
+    for arg in "$temp" "$build"; do
+        if [[ -d $arg ]]; then
+            echo "Error:" >&2
+            echo "> directory already exists: $arg" >&2
+            if [[ -z "$force" ]]; then
+                return 1
+            fi
+            echo "> replacing by force" >&2
+            rm -rf "$arg"
+        fi
+    done
+    for arg in "$temp" "$build"; do
+        mkdir "$arg"
+    done
+
+    echo "$TEMPLATE_TOC" > "$temp"/toc_entry.html
+    echo "$TEMPLATE_POST" > "$temp"/post.html
+    echo "$TEMPLATE_STYLE" > "$temp"/style.css
 }
 
 check_all_files() {
-    for file in $(find "$1" -type f -name "*.md"); do
+    error=""
+    find "$1" -type f -name "*.md" -print0 | while read -d $'\0' file; do
+        missing_fields=""
         if ! grep -Eq "date: \"([0-9]{4}-[0-9]{2}-[0-9]{2}|)\"" "$file"; then
-            echo "Error in metadata-block of $file" >&2
-            return 1
-        elif ! grep -Eq "title: \".*\"" "$file"; then
-            echo "Error in metadata-block of $file" >&2
-            return 1
-        elif ! grep -Eq "summary: \".*\"" "$file"; then
-            echo "Error in metadata-block of $file" >&2
-            return 1
+            missing_fields="$missing_fields date"
+        fi
+        if ! grep -Eq "title: \".*\"" "$file"; then
+            missing_fields="$missing_fields title"
+        fi
+        if ! grep -Eq "summary: \".*\"" "$file"; then
+            missing_fields="$missing_fields summary"
+        fi
+        if [[ -n $missing_fields ]]; then
+            error="true"
+            echo "Error:" >&2
+            echo "> metadata-block of $file is missing fields:" >&2
+            echo "> $missing_fields"
         fi
     done
+    if [[ -n $error ]]; then
+        return 1
+    fi
 }
 
 check_dependencies() {
     if ! command -v pandoc >/dev/null; then
-        echo "Error: pandoc must be installed."
+        echo "Error:" >&2
+        echo "> pandoc must be installed." >&2
         return 1
     fi
 }
 
 parse_arguments() {
-    while getopts ":t:p:m:h-:" opt "$@"; do
+    title=""
+    posts=""
+    media=""
+    force=""
+    while getopts ":t:p:m:h-:f-:" opt "$@"; do
         case $opt in
             h)
                 echo "$HELP"
@@ -122,6 +156,9 @@ parse_arguments() {
             m)
                 media="$OPTARG"
                 ;;
+            f)
+                force="true"
+                ;;
             *)
                 echo "Error: Invalid option: $opt"
                 return 1
@@ -135,31 +172,34 @@ parse_arguments() {
 }
 
 main() {
-    cd "$(dirname "$0")"
     parse_arguments "$@" || exit 1
     check_dependencies  || exit 1
     check_all_files "$posts" || exit 1
-    prepare_workspace
+    prepare_workspace "$(dirname "$posts")" "$force" || exit 1
+
+    temp=$(dirname "$posts")/temp
+    build=$(dirname "$posts")/build
 
     # Sort file names by date for chronological TOC
-    files=$(for f in $(find "$posts" -type f -name "*.md"); do
-        head -n 5 $f | grep '^date: ' | sed 's|^date: "\(.*\)"$|\1 '"$f"'|'
+    # TODO: fix bug where a filename contains spaces
+    files=$(find "$posts" -type f -name "*.md" -print0 | while read -d $'\0' f; do
+        head -n 5 "$f" | grep '^date: ' | sed 's|^date: "\(.*\)"$|\1 '"$f"'|'
     done | sort --reverse | sed 's/^.* //')
 
     # Create TOC and sections
-    echo '<section id="'"$HOME"'">' > "$TEMP"/toc
-    for f in $files; do pandoc --template "$TEMP"/toc_entry.html "$f"; done >> "$TEMP"/toc
-    echo '</section>' >> "$TEMP"/toc
-    for f in $files; do pandoc --template "$TEMP"/post.html "$f"; done >> "$TEMP"/secs
+    echo '<section id="'"$HOME"'">' > "$temp"/toc
+    for f in $files; do pandoc --template "$temp"/toc_entry.html "$f"; done >> "$temp"/toc
+    echo '</section>' >> "$temp"/toc
+    for f in $files; do pandoc --template "$temp"/post.html "$f"; done > "$temp"/secs
 
     # Create index.html
-    pandoc -s --katex -f html -t html -M title="$title" -H "$TEMP"/style.css "$TEMP"/secs "$TEMP"/toc \
+    pandoc -s --katex -f html -t html -M title="$title" -H "$temp"/style.css "$temp"/secs "$temp"/toc \
         | sed -e 's/^<header/<a href="#'"$HOME"'"><header/' -e 's/^<\/header>$/<\/header><\/a>/' \
-        > "$BUILD"/index.html
+        > "$build"/index.html
 
     # Maybe import media-files
-    if [[ ! -z "$media" && -d "$media" ]]; then
-        cp "$media"/* "$BUILD"/
+    if [[ -n "$media" && -d "$media" ]]; then
+        cp "$media"/* "$build"/
     fi
 }
 
