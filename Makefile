@@ -66,7 +66,14 @@ endef
 # RECIPES
 
 
+.PHONY: default
 default: blog
+	@echo "Done"
+
+.PHONY: init
+export TITLE
+init: | source media
+	@sed -i "s/^TITLE ?= .*$$/TITLE ?= $$TITLE/" ./Makefile
 	@echo "Done"
 
 
@@ -87,7 +94,6 @@ source:
 export TEMPLATE_STYLE_CSS
 source/styles.css: | source
 	@echo "$$TEMPLATE_STYLE_CSS" > $@
-	@mkdir $@
 
 export TEMPLATE_TOC
 .templates/toc.html: | .templates
