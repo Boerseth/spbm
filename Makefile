@@ -1,6 +1,6 @@
 SHELL = /usr/bin/bash
 
-TITLE ?= blog-spam
+TITLE ?= spbm
 DEFAULT ?= home
 
 SOURCE_FILES = $(wildcard source/*.md)
