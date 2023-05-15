@@ -1,47 +1,29 @@
 SHELL = /usr/bin/bash
 
-# Arguments:
+TITLE ?= blog-spam
 DEFAULT ?= home
-TITLE ?= spamake
-SRC ?= posts
-MEDIA ?= media
 
-# Workspace directories
-CHECKS = .checks
-TEMPLATES = .templates
-SECTIONS = .sections
-BUILD = build
+SOURCE_FILES = $(wildcard source/*.md)
+MEDIA_FILES = $(wildcard media/*)
 
-# Directory groupd
-SOURCE_DIRECTORIES = $(SRC) $(MEDIA)
-PREP_DIRECTORIES = $(CHECKS) $(TEMPLATES) $(SECTIONS)
-WORK_DIRECTORIES = $(PREP_DIRECTORIES) $(BUILD)
-ALL_DIRECTORIES = $(SOURCE_DIRECTORIES) $(WORK_DIRECTORIES)
+WORK_DIRECTORIES = .templates .sections build
+SECTION_FILES = $(SOURCE_FILES:source/%.md=.sections/%.html)
+IMPORTED_FILES = $(MEDIA_FILES:media/%=build/%)
 
-# Template filenames
-TEMPLATE_TOC_HTML = $(TEMPLATES)/toc.html
-TEMPLATE_SECTION_HTML = $(TEMPLATES)/section.html
-TEMPLATE_STYLES_CSS = $(TEMPLATES)/styles.css
-TEMPLATE_FILES = $(TEMPLATE_TOC_HTML) $(TEMPLATE_SECTION_HTML) $(TEMPLATE_STYLES_CSS)
 
-# Filenames generated from source-files
-SOURCE_FILES = $(wildcard $(SRC)/*.md)
-CHECK_FILES = $(SOURCE_FILES:$(SRC)/%.md=$(CHECKS)/%)
-SECTION_FILES = $(SOURCE_FILES:$(SRC)/%.md=$(SECTIONS)/%.html)
+# TEMPLATES
 
-# Media files, and their imported counterparts
-MEDIA_FILES = $(wildcard $(MEDIA)/*)
-IMPORTED_FILES = $(MEDIA_FILES:$(MEDIA)/%=$(BUILD)/%)
 
-# These files will contain
-SRC_FILENAMES_CHRONOLOGICALLY = $(TEMPLATES)/src-order
-SECTION_FILENAMES_CHRONOLOGICALLY = $(TEMPLATES)/sect-order
-
-# File containing the Table-of-Contents in HTML
-TOC_FILE = $(SECTIONS)/toc.html
-
-# Template file contents
 ART_ID = $${if(date)}$${date}$${else}$${title}$${endif}
+
+define TEMPLATE_MARKDOWN
+---
+date: "%s"
+title: "%s"
+summary: "%s"
+...
+%s
+endef
 
 define TEMPLATE_TOC
 <h1><a href="#$(ART_ID)">$${title}</a></h1>
@@ -52,137 +34,142 @@ endef
 define TEMPLATE_SECTION
 <section id="$(ART_ID)">
 <h1>$${title}</h1>
-$${if(date)}<div class="section date">$${date}</div>$${endif}
-$${if(summary)}<div class="section summary">$${summary}</div>$${endif}
+$${if(date)}<div class="sec date">$${date}</div>$${endif}
+$${if(summary)}<div class="sec summary">$${summary}</div>$${endif}
 $${body}
 </section>
 endef
 
-define TEMPLATE_STYLE
-<style>
-/*style*/
+define TEMPLATE_MAIN
+endef
+
+define TEMPLATE_STYLE_CSS
+html {
+	max-width: 70ch;
+	padding: 3em 1em;
+	margin: auto;
+	line-height: 1.75;
+	font-size: 1.25em;
+}
+endef
+
+define NECESSARY_STYLE
+:target { scroll-margin: 50vh; }
 section { display: none; }
 section:target { display: block; }
 section#$(DEFAULT) { display: block; }
 section:target ~ section#$(DEFAULT) { display: none; }
-/*  The order of the sections is now important: #home must be last  */
-:target { scroll-margin: 50vh; }
-</style>
+/*  The order of the sections is now important: #$(DEFAULT) must be last  */
 endef
 
-define MARKDOWN_EXAMPLE
----
-date: "%s"
-title: "%s"
-summary: "%s"
-...
 
-%s
-endef
+# RECIPES
 
-default: single-page-blog
+
+default: blog
+	@echo "Done"
+
 
 # PREPARATIONS
 
-# Populate workspace:
-$(WORK_DIRECTORIES):
+
+media $(WORK_DIRECTORIES):
 	@mkdir $@
 
-export MARKDOWN_EXAMPLE
-$(SRC):
+export TEMPLATE_MARKDOWN
+source:
 	@mkdir $@
-	@printf -- "$$MARKDOWN_EXAMPLE" "" "About" "" "This is a blog." > $@/about.md
-	@printf -- "$$MARKDOWN_EXAMPLE" "2020-01-01" "First post" "Brief summary" "This is the first post." > $@/first.md
+	@printf -- "$$TEMPLATE_MARKDOWN" \
+		"" "About" "" "This is an about-page." > $@/about.md
+	@printf -- "$$TEMPLATE_MARKDOWN" \
+		"2020-01-01" "Blog-post" "First one" "This is a blog-post." > $@/post.md
+
+export TEMPLATE_STYLE_CSS
+source/styles.css: | source
+	@echo "$$TEMPLATE_STYLE_CSS" > $@
+	@mkdir $@
 
 export TEMPLATE_TOC
-$(TEMPLATE_TOC_HTML): $(TEMPLATES)
+.templates/toc.html: | .templates
 	@echo "$$TEMPLATE_TOC" > $@
 
 export TEMPLATE_SECTION
-$(TEMPLATE_SECTION_HTML): $(TEMPLATES)
+.templates/section.html: | .templates
 	@echo "$$TEMPLATE_SECTION" > $@
 
-export TEMPLATE_STYLE
-$(TEMPLATE_STYLES_CSS): $(TEMPLATES)
-	@echo "$$TEMPLATE_STYLE" > $@
 
-# Check input and metadata-blocks:
-$(CHECKS)/%: $(SRC)/%.md $(CHECKS)
-	@echo "  - Verifying $<"
+# TRANSIENT FILES
+
+
+# Build individual blog sections, after verifying
+$(SECTION_FILES): .sections/%.html: source/%.md .templates/section.html | .sections
+	@echo "- $@"
 	@if ! head "$<" -n 1 | grep "^---$$" > /dev/null; then exit 1; fi
 	@if ! head "$<" -n 4 | grep "^date: \".*\"$$" > /dev/null; then exit 1; fi
 	@if ! head "$<" -n 4 | grep "^title: \".*\"$$" > /dev/null; then exit 1; fi
 	@if ! head "$<" -n 4 | grep "^summary: \".*\"$$" > /dev/null; then exit 1; fi
 	@if ! head "$<" -n 5 | grep "^...$$" > /dev/null; then exit 1; fi
-	@head "$<" -n 4 | grep "^date" | sed 's|^.*"\(.*\)"|\1 $<|' > $@
+	@pandoc --mathml --template ".templates/section.html" -o $@ -i $<
 
-.PHONY: preparations
-preparations: $(ALL_DIRECTORIES) $(SOURCE_FILES) $(CHECK_FILES) $(TEMPLATE_FILES)
-	@echo "Prepared; Verified source dirs and files"
-
-# TRANSIENT FILES
-
-# Sort filenames chronologically
-$(SRC_FILENAMES_CHRONOLOGICALLY): preparations
-	@cat $(CHECKS)/* | sort --reverse > $@
-	@sed -i 's|^.*/\([^/]*\).md$$|\1|' $@
+# Sort filenames chronologically, after they`ve all been verified
+.templates/sorted-filenames: $(SECTION_FILES) | .templates
+	@grep "^date: \".*\"$$" source/* \
+		| sed 's|^source/\(.*\).md:date: "\(.*\)"$$|\2 \1|' \
+		| sort --reverse \
+		| sed 's|^.* ||' > $@
 
 # Build Table of Contents
-$(TOC_FILE): preparations $(SRC_FILENAMES_CHRONOLOGICALLY)
+.sections/toc.html: .templates/sorted-filenames .templates/toc.html | .sections
+	@echo "- $@"
 	@echo '<section id="$(DEFAULT)">' > $@
-	@for p in $$(cat $(SRC_FILENAMES_CHRONOLOGICALLY)); do pandoc --template "$(TEMPLATE_TOC_HTML)" "$(SRC)/$${p}.md"; done >> $@
+	@for source_file in $$(sed -e 's|^|source/|' -e 's|$$|.md|' $<); \
+		do pandoc --mathml --template ".templates/toc.html" "$$source_file"; \
+	done >> $@
 	@echo '</section>' >> $@
-	@echo "- Built TOC"
 
-# Build individual blog sections $(SECTION_FILES)
-$(SECTIONS)/%.html: $(SRC)/%.md preparations
-	@pandoc --template "$(TEMPLATE_SECTION_HTML)" -o $@ -i $<
-	@echo "  - Built $@"
-
-.PHONY: transients
-transients: $(SRC_FILENAMES_CHRONOLOGICALLY) $(TOC_FILE) $(SECTION_FILES)
 
 # BUILD
 
-# Calculate section-filenames in chronological order
-$(SECTION_FILENAMES_CHRONOLOGICALLY): transients
-	@cp $(SRC_FILENAMES_CHRONOLOGICALLY) $@
-	@sed -i 's|^\(.*\)$$|$(SECTIONS)/\1.html|' $@
-	@for s in $$(cat $@); do [[ -f $$s ]]; done
+
+# Create final style-file
+export NECESSARY_STYLE
+build/styles.css: source/styles.css | build 
+	@echo "- $@"
+	@cp $< $@
+	@echo "$$NECESSARY_STYLE" >> $@
 
 # Build index.html
-$(BUILD)/index.html: transients $(SECTION_FILENAMES_CHRONOLOGICALLY)
-	@pandoc -s --katex -f html -t html -M title="$(TITLE)" -H "$(TEMPLATE_STYLES_CSS)" \
-		--shift-heading-level-by=1 $$(cat $(SECTION_FILENAMES_CHRONOLOGICALLY)) $(TOC_FILE) \
-		| sed 's|^<header|<a href="#$(DEFAULT)"><header|' \
-		| sed 's|^</header>$$|</header></a>|' \
+build/index.html: build/styles.css .sections/toc.html .templates/sorted-filenames | build
+	@echo "- $@"
+	@pandoc -s --mathml  -f html -t html -M title="$(TITLE)" --css "/styles.css" \
+		--shift-heading-level-by=1 \
+		$$(sed -e 's|^|.sections/|' -e 's|$$|.html|' .templates/sorted-filenames) \
+		.sections/toc.html \
+		| sed 's|<h1\(.*\)>$(TITLE)</h1>|<h1\1><a href="#$(DEFAULT)">$(TITLE)</a></h1>|' \
 		> $@
 
 # Import media
-$(BUILD)/%: $(MEDIA)/% $(MEDIA) transients
+build/%: media/% | build
 	@if [[ -f $@ ]]; then rm $@; fi
 	@cp $< $@
 
 # Build Page
-.PHONY: single-page-blog
-single-page-blog: $(BUILD)/index.html $(IMPORTED_FILES)
-	@echo "Done."
+.PHONY: blog
+blog: build/index.html $(IMPORTED_FILES)
+
 
 # DEVELOPMENT
 
-# Serve page on localhost:3948
+
+# Serve contents of build/ on localhost:3948
 .PHONY: serve
-serve: single-page-blog
-	@cd $(BUILD) && python3 -m http.server 3948
+serve: | build
+	@cd build && python3 -m http.server 3948
 
 # Clean
-.PHONY: clean-temporary
-clean-temporary:
-	@for dir in $(PREP_DIRECTORIES); do if [[ -d $$dir ]]; then rm -rf $$dir; fi; done
+CLEAN_TARGETS = $(WORK_DIRECTORIES:%=clean-%)
 
-.PHONY: clean-build
-clean-build:
-	@if [[ -d $(BUILD) ]]; then rm -rf $(BUILD); fi
+$(CLEAN_TARGETS): clean-%: %
+	@if [[ -d $< ]]; then echo "- Removing $<"; rm -rf $<; fi
 
-.PHONY: clean
-clean: clean-temporary clean-build
+clean: $(CLEAN_TARGETS)
