@@ -1,0 +1,51 @@
+name: SPBM checks
+run-name: Checks on ${{ github.ref_name }}
+on: [push]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Check basic usage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install pandoc
+        run: sudo apt install -y pandoc
+      - name: Assert empty
+        shell: python
+        run: |
+          import os
+          ls_empty = {".git", ".github", ".gitignore", "README.md", "LICENCE", "Makefile"}
+          assert set(os.listdir()) == ls_empty
+      - name: Run `make init`
+        run: make init TITLE=test-title
+      - name: Assert init
+        shell: python
+        run: |
+          import os
+          ls_empty = {".git", ".github", ".gitignore", "README.md", "LICENCE", "Makefile"}
+          ls_result = set(os.listdir())
+          assert ls_result > ls_empty
+          assert len(ls_result - ls_empty) == 2
+      - name: Run `make`
+        run: make
+      - name: Assert build
+        shell: python
+        run: |
+          import os
+          ls_empty = {".git", ".github", ".gitignore", "README.md", "LICENCE", "Makefile"}
+          ls_result = set(os.listdir())
+          assert ls_result > ls_empty
+          assert len(ls_result - ls_empty) == 5
+      - name: Run `make clean`
+        run: make clean
+      - name: Assert clean
+        shell: python
+        run: |
+          import os
+          ls_empty = {".git", ".github", ".gitignore", "README.md", "LICENCE", "Makefile"}
+          ls_result = set(os.listdir())
+          assert ls_result > ls_empty
+          assert len(ls_result - ls_empty) == 2
