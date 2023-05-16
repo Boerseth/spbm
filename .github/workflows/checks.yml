@@ -26,7 +26,7 @@ jobs:
       - name: Run `make init`
         run: make init TITLE=test-title
       - name: Assert initialized
-        run: python3 ls_assert.py source mediawrongname
+        run: python3 ls_assert.py source media
       - name: Run `make`
         run: make
       - name: Assert built
