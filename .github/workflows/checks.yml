@@ -13,39 +13,25 @@ jobs:
       - uses: actions/checkout@v3
       - name: Install pandoc
         run: sudo apt install -y pandoc
-      - name: Assert empty
-        shell: python
+      - name: Prepare asserting script
         run: |
-          import os
-          ls_empty = {".git", ".github", ".gitignore", "README.md", "LICENCE", "Makefile"}
-          assert set(os.listdir()) == ls_empty
+          echo 'import os' > ls_assert.py
+          echo 'import sys' >> ls_assert.py
+          echo 'contents = {"ls_assert.py"}' >> ls_assert.py
+          echo 'contents |= {".git", ".github", ".gitignore"}' >> ls_assert.py
+          echo 'contents |= {"README.md", "LICENCE", "Makefile"}' >> ls_assert.py
+          echo 'assert set(os.listdir()) == contents | set(sys.argv[1:])' >> ls_assert.py
+      - name: Assert empty
+        run: python3 ls_assert.py
       - name: Run `make init`
         run: make init TITLE=test-title
-      - name: Assert init
-        shell: python
-        run: |
-          import os
-          ls_empty = {".git", ".github", ".gitignore", "README.md", "LICENCE", "Makefile"}
-          ls_result = set(os.listdir())
-          assert ls_result > ls_empty
-          assert len(ls_result - ls_empty) == 2
+      - name: Assert initialized
+        run: python3 ls_assert.py source media
       - name: Run `make`
         run: make
-      - name: Assert build
-        shell: python
-        run: |
-          import os
-          ls_empty = {".git", ".github", ".gitignore", "README.md", "LICENCE", "Makefile"}
-          ls_result = set(os.listdir())
-          assert ls_result > ls_empty
-          assert len(ls_result - ls_empty) == 5
+      - name: Assert built
+        run: python3 ls_assert.py source media build .sections .templates
       - name: Run `make clean`
         run: make clean
-      - name: Assert clean
-        shell: python
-        run: |
-          import os
-          ls_empty = {".git", ".github", ".gitignore", "README.md", "LICENCE", "Makefile"}
-          ls_result = set(os.listdir())
-          assert ls_result > ls_empty
-          assert len(ls_result - ls_empty) == 2
+      - name: Assert cleaned
+        run: python3 ls_assert.py source media
