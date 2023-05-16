@@ -4,7 +4,7 @@ TITLE ?= spbm
 DEFAULT ?= home
 
 SOURCE_FILES = $(wildcard source/*.md)
-MEDIA_FILES = $(wildcard media/*)
+MEDIA_FILES = $(shell find media/ -type f)
 
 WORK_DIRECTORIES = .templates .sections build
 SECTION_FILES = $(SOURCE_FILES:source/%.md=.sections/%.html)
@@ -156,6 +156,7 @@ build/index.html: build/styles.css .sections/toc.html .templates/sorted-filename
 
 # Import media
 build/%: media/% | build
+	@mkdir -p $(@D)
 	@if [[ -f $@ ]]; then rm $@; fi
 	@cp $< $@
 
